@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Essence Wears System</title>
+<style>
+body { font-family: Arial, sans-serif; margin:0; background:#f5f5f5; }
+header { display:flex; align-items:center; padding:10px; background:#222; color:#fff; }
+header img { height:50px; margin-right:10px; }
+header h1 { margin:0; font-size:24px; }
+nav { background:#333; padding:10px; }
+nav button { color:#fff; background:#333; border:none; padding:10px 20px; cursor:pointer; border-radius:5px; margin-right:5px; }
+nav button:hover { background:#555; }
+.page { padding:20px; display:none; }
+.add-order { background:#fff; padding:10px; border-radius:5px; margin-bottom:10px; }
+table { width:100%; border-collapse:collapse; background:#fff; }
+th, td { border:1px solid #ccc; padding:5px; text-align:center; vertical-align:top; word-wrap:break-word; }
+th { background:#eee; }
+input[type="text"], input[type="number"], select { width:100%; box-sizing:border-box; }
+.search-box { margin-bottom:10px; padding:5px; width:50%; }
+button.pdf-btn, button.add-item-btn { padding:3px 6px; margin-left:5px; cursor:pointer; }
+.modal { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); justify-content:center; align-items:center; }
+.modal-content { background:#fff; padding:20px; border-radius:5px; width:80%; max-width:600px; }
+.modal-content h2 { margin-top:0; }
+.item-list { margin:5px 0; }
+</style>
+</head>
+<body>
+
+<header>
+  <img src="logo.png" alt="Essence Wears Logo">
+  <h1>Essence Wears System</h1>
+</header>
+
+<nav>
+  <button onclick="showPage('ordersPage')">Orders</button>
+</nav>
+
+<div id="ordersPage" class="page">
+  <h2>Orders</h2>
+
+  <input type="text" class="search-box" placeholder="Search by Name, Number, ID" onkeyup="searchOrders()">
+
+  <div class="add-order">
+    <button onclick="toggleAddOrder()">+ Add Order</button>
+    <div id="addOrderForm" style="display:none; margin-top:10px;">
+      <input type="number" placeholder="Order ID" id="newOrderID"><br>
+      <input type="text" placeholder="Customer Name" id="newOrderCustomer"><br>
+      <input type="text" placeholder="Customer Number" id="newOrderNumber"><br>
+      <input type="text" placeholder="Location" id="newOrderLocation"><br>
+      <input type="text" placeholder="Order Date" id="newOrderDate"><br>
+
+      <div>
+        <h4>Items</h4>
+        <button class="add-item-btn" onclick="addItemToList()">+ Add Item</button>
+        <div id="itemsList"></div>
+        <div id="itemForm" style="display:none; margin-top:5px;">
+          <select id="itemType">
+            <option>Hoodie</option>
+            <option>T-shirt</option>
+            <option>Jacket</option>
+            <option>Sweatpants</option>
+            <option>Shorts</option>
+          </select>
+          <select id="itemSize">
+            <option>Small</option>
+            <option>Medium</option>
+            <option>Large</option>
+            <option>XL</option>
+            <option>2XL</option>
+            <option>3XL</option>
+          </select>
+          <button onclick="confirmAddItem()">Add</button>
+          <button onclick="cancelAddItem()">Cancel</button>
+        </div>
+      </div>
+
+      <input type="number" placeholder="Total Paid" id="newPaid"><br>
+      <input type="number" placeholder="Total Sold" id="newSold"><br>
+      <select id="newStatus"><option>Pending</option><option>Delivery</option><option>Done</option></select><br>
+      <select id="newMoneyStatus"><option>Pending</option><option>Paid</option></select><br>
+      <button onclick="addOrder()">Add Order</button>
+    </div>
+  </div>
+
+  <table id="ordersTable">
+    <thead>
+      <tr>
+        <th>ID</th><th>Customer</th><th>Number</th><th>Location</th><th>Items</th>
+        <th>Total Paid</th><th>Total Sold</th><th>Profit</th><th>Order Date</th><th>Status</th><th>Money Status</th><th>Options</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+</div>
+
+<!-- PDF Preview Modal -->
+<div id="pdfModal" class="modal">
+  <div class="modal-content">
+    <span class="close" onclick="closePDF()">&times;</span>
+    <div id="pdfContent"></div>
+    <button onclick="sendLinkWhatsApp()">Send Link</button>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script>
+let orders = [];
+let tempItems = [];
+let currentOrderIndex=null;
+
+const logoBase64 = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAA..."; // replace with full base64 logo
+
+function showPage(id){
+  document.querySelectorAll('.page').forEach(p=>p.style.display='none');
+  document.getElementById(id).style.display='block';
+}
+showPage('ordersPage');
+
+function toggleAddOrder(){ document.getElementById('addOrderForm').style.display = document.getElementById('addOrderForm').style.display==='none'?'block':'none'; }
+
+function addItemToList(){ document.getElementById('itemForm').style.display='block'; }
+function confirmAddItem(){
+  const type = document.getElementById('itemType').value;
+  const size = document.getElementById('itemSize').value;
+  tempItems.push({type,size}); renderTempItems(); document.getElementById('itemForm').style.display='none';
+}
+function cancelAddItem(){ document.getElementById('itemForm').style.display='none'; }
+
+function renderTempItems(){
+  const listDiv = document.getElementById('itemsList'); listDiv.innerHTML = '';
+  tempItems.forEach((i, idx)=>{
+    const div = document.createElement('div'); div.className='item-list';
+    div.textContent = `${i.type} - ${i.size} `;
+    const removeBtn = document.createElement('button'); removeBtn.textContent='x';
+    removeBtn.onclick=()=>{ tempItems.splice(idx,1); renderTempItems(); };
+    div.appendChild(removeBtn); listDiv.appendChild(div);
+  });
+}
+
+function addOrder(){
+  const paid=Number(document.getElementById('newPaid').value)||0;
+  const sold=Number(document.getElementById('newSold').value)||0;
+  const profit=sold-paid;
+  const o={id:document.getElementById('newOrderID').value,customer:document.getElementById('newOrderCustomer').value,
+    number:document.getElementById('newOrderNumber').value,location:document.getElementById('newOrderLocation').value,
+    items:[...tempItems],paid,sold,profit,date:document.getElementById('newOrderDate').value,
+    status:document.getElementById('newStatus').value,moneyStatus:document.getElementById('newMoneyStatus').value};
+  orders.push(o); tempItems=[]; renderTempItems(); renderOrders();
+}
+
+function renderOrders(){
+  const tbody = document.querySelector('#ordersTable tbody'); tbody.innerHTML='';
+  orders.forEach((o,i)=>{
+    const tr = document.createElement('tr');
+    tr.innerHTML=`<td>${o.id}</td><td>${o.customer}</td><td>${o.number}</td><td>${o.location}</td>
+      <td>${o.items.map(it=>`${it.type}-${it.size}`).join(', ')}</td>
+      <td>$${o.paid}</td><td>$${o.sold}</td><td>$${o.profit}</td><td>${o.date}</td>
+      <td>${o.status}</td><td>${o.moneyStatus}</td>
+      <td><button class="pdf-btn" onclick="previewPDF(${i})">Preview PDF</button></td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+function searchOrders(){
+  const filter=document.querySelector('.search-box').value.toLowerCase();
+  document.querySelectorAll('#ordersTable tbody tr').forEach(tr=>{
+    tr.style.display=[...tr.children].some(td=>td.textContent.toLowerCase().includes(filter))?'':'none';
+  });
+}
+
+// PDF Preview
+function previewPDF(i){ 
+  currentOrderIndex=i;
+  const o=orders[i];
+  const content = `
+    <h2>Essence Wears</h2>
+    <img src="${logoBase64}" alt="Logo" style="height:40px;">
+    <p><strong>Order ID:</strong> ${o.id}</p>
+    <p><strong>Customer:</strong> ${o.customer}</p>
+    <p><strong>Number:</strong> ${o.number}</p>
+    <p><strong>Location:</strong> ${o.location}</p>
+    <p><strong>Order Date:</strong> ${o.date}</p>
+    <p><strong>Items:</strong> ${o.items.map(it=>`${it.type}-${it.size}`).join(', ')}</p>
+    <p><strong>Total:</strong> $${o.paid}</p>
+    <p><strong>Status:</strong> ${o.status}</p>
+  `;
+  document.getElementById('pdfContent').innerHTML=content;
+  document.getElementById('pdfModal').style.display='flex';
+}
+
+function closePDF(){ document.getElementById('pdfModal').style.display='none'; }
+
+// NEW: Send link via WhatsApp
+function sendLinkWhatsApp(){
+  if(currentOrderIndex===null) return;
+  const o=orders[currentOrderIndex];
+  const link = `${window.location.origin}${window.location.pathname}?order=${o.id}`;
+  const message = `Dear ${o.customer}, kindly click this link to view your order: ${link}`;
+  // open WhatsApp Web or App
+  const waUrl = `https://wa.me/?text=${encodeURIComponent(message)}`;
+  window.open(waUrl, '_blank');
+}
+
+// Auto-load order from query string
+function getOrderFromURL(){
+  const params=new URLSearchParams(window.location.search);
+  const orderID=params.get('order');
+  if(orderID){
+    const o=orders.find(x=>x.id==orderID);
+    if(o) previewPDF(orders.indexOf(o));
+  }
+}
+window.onload=()=>{ showPage('ordersPage'); getOrderFromURL(); };
+</script>
+
+</body>
+</html>
